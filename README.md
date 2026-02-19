@@ -1,6 +1,10 @@
-# Agent Pager
+<p align="center">
+  <img src="banner.svg" alt="Agent Pager" width="100%"/>
+</p>
 
-Get Slack notifications when your AI coding agent needs attention. Reply from your phone. Walk away from your computer.
+<p align="center">
+  <strong>Get Slack notifications when your AI coding agent needs attention.<br/>Reply from your phone. Walk away from your computer.</strong>
+</p>
 
 Agent Pager runs your coding agents ([Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex CLI](https://github.com/openai/codex)) inside tmux, captures terminal screenshots when they pause for input, and sends them to Slack. You reply in the Slack thread; your reply goes straight to the agent's terminal.
 
