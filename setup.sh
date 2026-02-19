@@ -9,9 +9,48 @@ HOOKS_DIR="${BRIDGE_DIR}/hooks"
 CLAUDE_SETTINGS="${HOME}/.claude/settings.json"
 CODEX_CONFIG="${HOME}/.codex/config.toml"
 
+# ─── Platform detection ──────────────────────────────────────────────────────────
+
+PLATFORM="unknown"
+IS_WSL=false
+PKG_MGR="manual"
+
+case "$(uname -s)" in
+  Darwin) PLATFORM="macos"; PKG_MGR="brew" ;;
+  Linux)
+    PLATFORM="linux"
+    if grep -qi microsoft /proc/version 2>/dev/null; then
+      IS_WSL=true
+    fi
+    if command -v apt-get &>/dev/null; then
+      PKG_MGR="apt"
+    elif command -v dnf &>/dev/null; then
+      PKG_MGR="dnf"
+    elif command -v pacman &>/dev/null; then
+      PKG_MGR="pacman"
+    fi
+    ;;
+esac
+
+# Shell RC file
+if [ -f "${HOME}/.zshrc" ]; then
+  SHELL_RC="${HOME}/.zshrc"
+elif [ -f "${HOME}/.bashrc" ]; then
+  SHELL_RC="${HOME}/.bashrc"
+else
+  SHELL_RC=""
+fi
+
 echo "╔══════════════════════════════════════════════════════╗"
 echo "║   Agent Pager — Setup                               ║"
 echo "╚══════════════════════════════════════════════════════╝"
+echo ""
+
+if [ "$IS_WSL" = true ]; then
+  echo "  Platform: Linux (WSL)"
+else
+  echo "  Platform: ${PLATFORM}"
+fi
 echo ""
 
 # ─── Step 0: Check dependencies ────────────────────────────────────────────────
@@ -21,22 +60,51 @@ echo ""
 
 check_deps() {
   local missing=()
-  command -v node &>/dev/null || missing+=("node (brew install node)")
-  command -v tmux &>/dev/null || missing+=("tmux (brew install tmux)")
-  command -v freeze &>/dev/null || missing+=("freeze (brew install charmbracelet/tap/freeze)")
+  local install_cmds=()
+
+  if ! command -v node &>/dev/null; then
+    case "$PKG_MGR" in
+      brew) missing+=("node"); install_cmds+=("brew install node") ;;
+      apt)  missing+=("node"); install_cmds+=("curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs") ;;
+      *)    missing+=("node (https://nodejs.org)") ;;
+    esac
+  fi
+
+  if ! command -v tmux &>/dev/null; then
+    case "$PKG_MGR" in
+      brew) missing+=("tmux"); install_cmds+=("brew install tmux") ;;
+      apt)  missing+=("tmux"); install_cmds+=("sudo apt-get install -y tmux") ;;
+      dnf)  missing+=("tmux"); install_cmds+=("sudo dnf install -y tmux") ;;
+      pacman) missing+=("tmux"); install_cmds+=("sudo pacman -S --noconfirm tmux") ;;
+      *)    missing+=("tmux") ;;
+    esac
+  fi
+
+  if ! command -v freeze &>/dev/null; then
+    case "$PKG_MGR" in
+      brew) missing+=("freeze"); install_cmds+=("brew install charmbracelet/tap/freeze") ;;
+      *)    missing+=("freeze (go install github.com/charmbracelet/freeze@latest)") ;;
+    esac
+  fi
 
   if [ ${#missing[@]} -gt 0 ]; then
     echo "  Missing dependencies:"
     for dep in "${missing[@]}"; do echo "    • $dep"; done
     echo ""
-    read -rp "  Install all via Homebrew? (Y/n) " install
-    if [ "$install" != "n" ] && [ "$install" != "N" ]; then
-      command -v node &>/dev/null || brew install node
-      command -v tmux &>/dev/null || brew install tmux
-      command -v freeze &>/dev/null || brew install charmbracelet/tap/freeze
-      echo "  ✓ Dependencies installed"
+
+    if [ ${#install_cmds[@]} -gt 0 ]; then
+      read -rp "  Install automatically? (Y/n) " do_install
+      if [ "$do_install" != "n" ] && [ "$do_install" != "N" ]; then
+        for cmd in "${install_cmds[@]}"; do
+          echo "  Running: $cmd"
+          eval "$cmd"
+        done
+        echo "  ✓ Dependencies installed"
+      else
+        echo "  Continuing without installing (some features may not work)"
+      fi
     else
-      echo "  Continuing without installing (some features may not work)"
+      echo "  Install these manually and re-run setup."
     fi
   else
     echo "  ✓ All dependencies found (node, tmux, freeze)"
@@ -332,12 +400,8 @@ fi
 
 echo "━━━ Step 6: Shell integration ━━━"
 echo ""
-echo "  Add this line to your ~/.zshrc (or ~/.bashrc):"
-echo ""
-echo "    source ${BRIDGE_DIR}/page.sh"
-echo ""
 echo "  This gives you:"
-echo "    page <task>          — Start agent in tmux (default: ${PAGER_DEFAULT_AGENT:-claude})"
+echo "    page <task>          — Start agent in tmux"
 echo "    page codex <task>   — Start Codex CLI in tmux"
 echo "    page claude <task>  — Start Claude Code in tmux"
 echo "    pagea               — Attach to a running session"
@@ -345,12 +409,10 @@ echo "    pagel               — List active sessions"
 echo "    pageb               — Check bridge health"
 echo ""
 
-SHELL_RC="${HOME}/.zshrc"
-if [ -f "$SHELL_RC" ]; then
+if [ -n "$SHELL_RC" ]; then
   # Remove old cc.sh source line if present
   if grep -q "claude-slack-bridge/cc.sh" "$SHELL_RC" 2>/dev/null; then
     echo "  Found old cc.sh source line — replacing with page.sh"
-    # Use perl for cross-platform in-place edit
     perl -i -pe 's|.*claude-slack-bridge/cc\.sh.*|# Agent Pager\nsource '"${BRIDGE_DIR}"'/page.sh|' "$SHELL_RC"
     echo "  ✓ Updated in $SHELL_RC"
   elif grep -q "agent-pager/page.sh\|claude-slack-bridge/page.sh" "$SHELL_RC" 2>/dev/null; then
@@ -365,37 +427,41 @@ if [ -f "$SHELL_RC" ]; then
       echo "  ✓ Added to $SHELL_RC"
     fi
   fi
+else
+  echo "  No ~/.zshrc or ~/.bashrc found."
+  echo "  Add this to your shell config manually:"
+  echo "    source ${BRIDGE_DIR}/page.sh"
 fi
 echo ""
 
-# ─── Step 7: launchd (auto-start) ────────────────────────────────────────────────
+# ─── Step 7: Auto-start (platform-aware) ────────────────────────────────────────
 
-echo "━━━ Step 7: Auto-start with launchd ━━━"
+echo "━━━ Step 7: Auto-start ━━━"
 echo ""
 
-PLIST_LABEL="com.agent-pager"
-PLIST_DST="${HOME}/Library/LaunchAgents/${PLIST_LABEL}.plist"
-OLD_PLIST="${HOME}/Library/LaunchAgents/com.claude-slack-bridge.plist"
+if [ "$PLATFORM" = "macos" ]; then
+  # ── macOS: launchd ──
+  PLIST_LABEL="com.agent-pager"
+  PLIST_DST="${HOME}/Library/LaunchAgents/${PLIST_LABEL}.plist"
+  OLD_PLIST="${HOME}/Library/LaunchAgents/com.claude-slack-bridge.plist"
 
-echo "  Install launchd agent to keep the bridge running? (Y/n)"
-read -r install_launchd
+  echo "  Install launchd agent to keep the bridge running? (Y/n)"
+  read -r install_service
 
-if [ "$install_launchd" != "n" ] && [ "$install_launchd" != "N" ]; then
-  # Unload old plist if it exists
-  if [ -f "$OLD_PLIST" ]; then
-    launchctl unload "$OLD_PLIST" 2>/dev/null || true
-    rm -f "$OLD_PLIST"
-    echo "  Removed old com.claude-slack-bridge plist"
-  fi
+  if [ "$install_service" != "n" ] && [ "$install_service" != "N" ]; then
+    # Unload old plist if it exists
+    if [ -f "$OLD_PLIST" ]; then
+      launchctl unload "$OLD_PLIST" 2>/dev/null || true
+      rm -f "$OLD_PLIST"
+      echo "  Removed old com.claude-slack-bridge plist"
+    fi
 
-  # Unload if already loaded
-  launchctl unload "$PLIST_DST" 2>/dev/null || true
+    launchctl unload "$PLIST_DST" 2>/dev/null || true
 
-  # Update plist with correct paths
-  NODE_PATH=$(which node)
-  mkdir -p "$(dirname "$PLIST_DST")"
+    NODE_PATH=$(which node)
+    mkdir -p "$(dirname "$PLIST_DST")"
 
-  cat > "$PLIST_DST" <<PEOF
+    cat > "$PLIST_DST" <<PEOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -428,11 +494,52 @@ if [ "$install_launchd" != "n" ] && [ "$install_launchd" != "N" ]; then
 </plist>
 PEOF
 
-  launchctl load "$PLIST_DST"
-  echo "  ✓ launchd agent installed and started"
-  echo "  Logs: ~/.agent-pager/pager.log (app) + /tmp/agent-pager.log (launchd)"
-else
-  echo "  Skipped. Start manually with: npm start"
+    launchctl load "$PLIST_DST"
+    echo "  ✓ launchd agent installed and started"
+    echo "  Logs: ~/.agent-pager/pager.log (app) + /tmp/agent-pager.log (launchd)"
+  else
+    echo "  Skipped. Start manually with: npm start"
+  fi
+
+elif [ "$PLATFORM" = "linux" ]; then
+  # ── Linux / WSL: systemd ──
+  if command -v systemctl &>/dev/null; then
+    echo "  Install systemd user service to keep the bridge running? (Y/n)"
+    read -r install_service
+
+    if [ "$install_service" != "n" ] && [ "$install_service" != "N" ]; then
+      NODE_PATH=$(which node)
+      mkdir -p "${HOME}/.config/systemd/user"
+
+      cat > "${HOME}/.config/systemd/user/agent-pager.service" <<SEOF
+[Unit]
+Description=Agent Pager
+After=network.target
+
+[Service]
+WorkingDirectory=${BRIDGE_DIR}
+ExecStart=${NODE_PATH} ${BRIDGE_DIR}/bridge.js
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+SEOF
+
+      systemctl --user daemon-reload
+      systemctl --user enable --now agent-pager
+      echo "  ✓ systemd user service installed and started"
+      echo "  Logs: journalctl --user -u agent-pager -f"
+    else
+      echo "  Skipped. Start manually with: npm start"
+    fi
+  else
+    echo "  systemd not found. Start the bridge manually:"
+    echo "    node ${BRIDGE_DIR}/bridge.js"
+    echo ""
+    echo "  Or run in a background tmux session:"
+    echo "    tmux new-session -d -s pager 'node ${BRIDGE_DIR}/bridge.js'"
+  fi
 fi
 echo ""
 
@@ -459,9 +566,12 @@ if [ "$run_smoke" != "n" ] && [ "$run_smoke" != "N" ]; then
   else
     echo "  ✓ Bridge running (PID $BRIDGE_PID)"
 
-    # Create test tmux session
-    tmux new-session -d -s cc-smoke-test "echo 'Agent Pager smoke test — this is a test session'; sleep 30" 2>/dev/null || true
-    sleep 2
+    # Create test tmux session (only if tmux is available)
+    SMOKE_TMUX=""
+    if command -v tmux &>/dev/null; then
+      tmux new-session -d -s cc-smoke-test "echo 'Agent Pager smoke test'; sleep 30" 2>/dev/null && SMOKE_TMUX="cc-smoke-test"
+      sleep 2
+    fi
 
     # Fire test notification
     AUTH_HEADER=""
@@ -469,22 +579,32 @@ if [ "$run_smoke" != "n" ] && [ "$run_smoke" != "N" ]; then
       AUTH_HEADER="-H X-Bridge-Token:${BRIDGE_SECRET}"
     fi
 
+    SMOKE_PAYLOAD="{\"session_id\":\"smoke-test\",\"notification_type\":\"test\",\"_agent\":\"claude\""
+    if [ -n "$SMOKE_TMUX" ]; then
+      SMOKE_PAYLOAD="${SMOKE_PAYLOAD},\"tmux_session\":\"${SMOKE_TMUX}\""
+    fi
+    SMOKE_PAYLOAD="${SMOKE_PAYLOAD}}"
+
     SMOKE_RESULT=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://127.0.0.1:7890/notification" \
       -H "Content-Type: application/json" \
       ${AUTH_HEADER} \
-      -d '{"session_id":"smoke-test","tmux_session":"cc-smoke-test","notification_type":"test","_agent":"claude"}' \
+      -d "$SMOKE_PAYLOAD" \
       --connect-timeout 5 \
       --max-time 10 2>/dev/null || echo "000")
 
     if [ "$SMOKE_RESULT" = "200" ]; then
       echo "  ✓ Notification sent (HTTP $SMOKE_RESULT)"
-      echo "  Check Slack — you should see a test screenshot!"
+      if [ -n "$SMOKE_TMUX" ]; then
+        echo "  Check Slack — you should see a test screenshot!"
+      else
+        echo "  Check Slack — you should see a test message!"
+      fi
     else
       echo "  ✗ Notification failed (HTTP $SMOKE_RESULT)"
     fi
 
     sleep 3
-    tmux kill-session -t cc-smoke-test 2>/dev/null || true
+    [ -n "$SMOKE_TMUX" ] && tmux kill-session -t cc-smoke-test 2>/dev/null || true
     kill "$BRIDGE_PID" 2>/dev/null || true
     wait "$BRIDGE_PID" 2>/dev/null || true
     echo "  ✓ Smoke test cleanup done"
@@ -511,8 +631,16 @@ echo "    /pager <task>       Start from Slack"
 echo "    /pager list         Dashboard in Slack"
 echo "    /pager health       Bridge diagnostics"
 echo ""
-echo "  Bridge management:"
-echo "    Logs:    tail -f ~/.agent-pager/pager.log"
-echo "    Restart: launchctl kickstart -k gui/\$(id -u)/com.agent-pager"
-echo "    Stop:    launchctl unload ~/Library/LaunchAgents/com.agent-pager.plist"
+
+if [ "$PLATFORM" = "macos" ]; then
+  echo "  Bridge management:"
+  echo "    Logs:    tail -f ~/.agent-pager/pager.log"
+  echo "    Restart: launchctl kickstart -k gui/\$(id -u)/com.agent-pager"
+  echo "    Stop:    launchctl unload ~/Library/LaunchAgents/com.agent-pager.plist"
+elif [ "$PLATFORM" = "linux" ] && command -v systemctl &>/dev/null; then
+  echo "  Bridge management:"
+  echo "    Logs:    journalctl --user -u agent-pager -f"
+  echo "    Restart: systemctl --user restart agent-pager"
+  echo "    Stop:    systemctl --user stop agent-pager"
+fi
 echo ""

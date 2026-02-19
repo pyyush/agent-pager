@@ -228,7 +228,107 @@ $codexHookLine
     Write-Host ""
 }
 
-# ─── Step 6: Done ───────────────────────────────────────────────────────────────
+# ─── Step 6: WSL setup (optional, for full features) ─────────────────────────
+
+Write-Host "--- Step 6: Full-feature setup (WSL) ---" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  Native Windows gives you one-way notifications (agent -> Slack)." -ForegroundColor Yellow
+Write-Host "  For screenshots and reply-from-Slack, you need WSL + tmux." -ForegroundColor Yellow
+Write-Host ""
+
+$wslAvailable = $false
+$wslHasTmux = $false
+
+# Check if WSL is installed
+try {
+    $wslOutput = & wsl --list --quiet 2>&1
+    if ($LASTEXITCODE -eq 0 -and $wslOutput -and $wslOutput -notmatch "no installed distributions") {
+        $wslAvailable = $true
+        Write-Host "  WSL detected" -ForegroundColor Green
+
+        # Check if tmux is available inside WSL
+        try {
+            & wsl -- which tmux 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                $wslHasTmux = $true
+                Write-Host "  tmux found in WSL" -ForegroundColor Green
+            } else {
+                Write-Host "  tmux NOT found in WSL" -ForegroundColor Yellow
+            }
+        } catch {
+            Write-Host "  Could not check tmux in WSL" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "  WSL is not installed" -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "  WSL is not installed" -ForegroundColor Yellow
+}
+Write-Host ""
+
+if (-not $wslAvailable) {
+    $installWsl = Read-Host "  Install WSL for full features? (y/N)"
+    if ($installWsl -eq "y" -or $installWsl -eq "Y") {
+        Write-Host ""
+        Write-Host "  Installing WSL (this requires admin privileges)..." -ForegroundColor Cyan
+        Write-Host "  Running: wsl --install" -ForegroundColor DarkGray
+        Write-Host ""
+        try {
+            Start-Process -FilePath "wsl" -ArgumentList "--install" -Verb RunAs -Wait
+            Write-Host ""
+            Write-Host "  WSL installation started." -ForegroundColor Green
+            Write-Host "  You will need to RESTART your computer to finish WSL setup." -ForegroundColor Yellow
+            Write-Host "  After restarting:" -ForegroundColor Yellow
+            Write-Host "    1. Open WSL (search 'Ubuntu' in Start)" -ForegroundColor Yellow
+            Write-Host "    2. Set up your Linux username/password" -ForegroundColor Yellow
+            Write-Host "    3. Re-run this setup script for WSL configuration" -ForegroundColor Yellow
+            Write-Host ""
+            Read-Host "  Press Enter to exit"
+            exit 0
+        } catch {
+            Write-Host "  Failed to start WSL installation." -ForegroundColor Red
+            Write-Host "  Try manually in an admin PowerShell: wsl --install" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "  Skipping WSL. You'll have notification-only support." -ForegroundColor Yellow
+    }
+} elseif (-not $wslHasTmux) {
+    $installTmux = Read-Host "  Install tmux in WSL for full features? (Y/n)"
+    if ($installTmux -ne "n" -and $installTmux -ne "N") {
+        Write-Host "  Installing tmux in WSL..."
+        try {
+            & wsl -- sudo apt-get update -qq 2>&1 | Out-Null
+            & wsl -- sudo apt-get install -y tmux 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                $wslHasTmux = $true
+                Write-Host "  tmux installed in WSL" -ForegroundColor Green
+            } else {
+                Write-Host "  Failed to install tmux." -ForegroundColor Red
+                Write-Host "  Install manually: wsl sudo apt install -y tmux" -ForegroundColor Yellow
+            }
+        } catch {
+            Write-Host "  Failed to install tmux." -ForegroundColor Red
+            Write-Host "  Install manually: wsl sudo apt install -y tmux" -ForegroundColor Yellow
+        }
+    }
+}
+
+# If WSL + tmux are available, offer next steps
+if ($wslAvailable -and $wslHasTmux) {
+    Write-Host ""
+    Write-Host "  WSL + tmux are ready for full-feature mode." -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  To set up inside WSL:" -ForegroundColor White
+    Write-Host "    1. Open WSL:  wsl" -ForegroundColor White
+    Write-Host "    2. Clone:     git clone https://github.com/pyyush/agent-pager.git" -ForegroundColor White
+    Write-Host "    3. Install:   cd agent-pager && npm install --production" -ForegroundColor White
+    Write-Host "    4. Run setup: bash setup.sh" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  The WSL setup handles freeze, systemd auto-start, and shell integration." -ForegroundColor White
+}
+Write-Host ""
+
+# ─── Step 7: Done ───────────────────────────────────────────────────────────────
 
 Write-Host "--- Setup Complete ---" -ForegroundColor Cyan
 Write-Host ""
@@ -243,10 +343,16 @@ Write-Host "  Start an agent in a separate terminal:"
 Write-Host "    claude 'fix the auth bug'"
 Write-Host "    codex --full-auto 'fix the auth bug'"
 Write-Host ""
-Write-Host "  Windows limitations:" -ForegroundColor Yellow
-Write-Host "    - Notifications work (agent -> Slack)" -ForegroundColor Yellow
-Write-Host "    - Screenshots require freeze (text fallback if missing)" -ForegroundColor Yellow
-Write-Host "    - Reply from Slack requires tmux (WSL only)" -ForegroundColor Yellow
-Write-Host ""
-Write-Host "  For full features (screenshots + reply routing), use WSL." -ForegroundColor Yellow
+
+if ($wslAvailable -and $wslHasTmux) {
+    Write-Host "  Current setup: Native Windows (notifications only)" -ForegroundColor White
+    Write-Host "  For full features: run 'bash setup.sh' inside WSL" -ForegroundColor Green
+} else {
+    Write-Host "  Windows mode:" -ForegroundColor Yellow
+    Write-Host "    - Notifications work (agent -> Slack)" -ForegroundColor Yellow
+    Write-Host "    - Screenshots need freeze (text fallback if missing)" -ForegroundColor Yellow
+    Write-Host "    - Reply from Slack needs WSL + tmux" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  For full features, install WSL and re-run this setup." -ForegroundColor Yellow
+}
 Write-Host ""
