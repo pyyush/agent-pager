@@ -9,7 +9,7 @@
 Agent Pager runs your coding agents ([Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex CLI](https://github.com/openai/codex)) inside tmux, captures terminal screenshots when they pause for input, and sends them to Slack. You reply in the Slack thread; your reply goes straight to the agent's terminal.
 
 ```
-You                    Your Mac                         Slack
+You                    Your Machine                      Slack
 ─────────────────────────────────────────────────────────────────
 page "fix the auth bug"
   └──→ tmux session ──→ claude runs ──→ needs input
@@ -47,6 +47,8 @@ brew install tmux charmbracelet/tap/freeze
 # Ubuntu/Debian (including WSL)
 sudo apt install tmux
 go install github.com/charmbracelet/freeze@latest  # or: snap install freeze
+
+# Windows → see "Windows setup" section below
 ```
 
 **1. Clone and install**
@@ -71,12 +73,12 @@ Go to [api.slack.com/apps](https://api.slack.com/apps) and click **Create New Ap
 bash setup.sh
 ```
 
-The setup wizard walks you through token configuration, hook installation, shell integration, and an optional smoke test. It takes about a minute.
+The setup wizard detects your platform (macOS / Linux / WSL), installs missing dependencies, configures tokens and hooks, sets up auto-start (launchd on macOS, systemd on Linux), and runs an optional smoke test. Takes about a minute.
 
 **4. Use it**
 
 ```sh
-source ~/.zshrc          # or open a new terminal
+source ~/.zshrc          # or ~/.bashrc, or open a new terminal
 page "fix the auth bug"  # launches Claude Code in tmux, notifies Slack
 ```
 
@@ -88,8 +90,8 @@ Agent Pager has three parts:
 
 | Part | What it does |
 |------|-------------|
-| **Hooks** | Tiny shell scripts that fire when the agent pauses. Claude Code uses stdin; Codex CLI uses argv. Each hook captures the JSON payload and POSTs it to the bridge. |
-| **Bridge** (`bridge.js`) | A Node.js process that receives hook events, captures tmux screenshots via `freeze`, uploads them to Slack, and routes Slack thread replies back to tmux. Runs as a launchd service. |
+| **Hooks** | Shell scripts (bash on macOS/Linux, PowerShell on Windows) that fire when the agent pauses. Claude Code uses stdin; Codex CLI uses argv. Each hook captures the JSON payload and POSTs it to the bridge. |
+| **Bridge** (`bridge.js`) | A Node.js process that receives hook events, captures tmux screenshots via `freeze`, uploads them to Slack, and routes Slack thread replies back to tmux. Runs as a background service (launchd on macOS, systemd on Linux). |
 | **Shell helpers** (`page.sh`) | Functions you source in your shell to start agents in tmux, list sessions, and check bridge health. |
 
 ```
@@ -152,19 +154,24 @@ All configuration lives in `.env`:
 
 ## Managing the bridge
 
-The setup wizard installs a launchd agent that keeps the bridge running automatically.
+The setup wizard installs a background service that keeps the bridge running automatically.
 
+**macOS (launchd)**
 ```sh
-# View logs
-tail -f ~/.agent-pager/pager.log
+tail -f ~/.agent-pager/pager.log                              # View logs
+launchctl kickstart -k gui/$(id -u)/com.agent-pager           # Restart
+launchctl unload ~/Library/LaunchAgents/com.agent-pager.plist  # Stop
+```
 
-# Restart
-launchctl kickstart -k gui/$(id -u)/com.agent-pager
+**Linux / WSL (systemd)**
+```sh
+journalctl --user -u agent-pager -f        # View logs
+systemctl --user restart agent-pager       # Restart
+systemctl --user stop agent-pager          # Stop
+```
 
-# Stop
-launchctl unload ~/Library/LaunchAgents/com.agent-pager.plist
-
-# Start manually (without launchd)
+**Manual (any platform)**
+```sh
 npm start
 ```
 
@@ -212,7 +219,7 @@ source "$(cd "$(dirname "$0")" && pwd)/../shared/post-to-bridge.sh"
 post_to_bridge "/notification"
 ```
 
-The adapter is auto-discovered on startup. The new agent is immediately available via `page myagent <task>` and `/pager myagent <task>`.
+The adapter is auto-discovered by the bridge on startup. The `/pager myagent <task>` Slack command works immediately. To also use `page myagent <task>` from the terminal, add a case to `page.sh`.
 
 ## Project structure
 
@@ -249,33 +256,19 @@ agent-pager/
 
 ## Linux setup
 
-Everything works except launchd (macOS-only). Use systemd instead:
+The setup wizard auto-detects Linux and offers systemd instead of launchd. Just run the same steps as Quick Start:
 
 ```sh
-# Run setup — skip the launchd step
+git clone https://github.com/pyyush/agent-pager.git
+cd agent-pager
+npm install --production
 bash setup.sh
-
-# Create a systemd user service
-mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/agent-pager.service <<EOF
-[Unit]
-Description=Agent Pager
-After=network.target
-
-[Service]
-WorkingDirectory=$(pwd)
-ExecStart=$(which node) $(pwd)/bridge.js
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=default.target
-EOF
-
-systemctl --user enable --now agent-pager
 ```
 
-View logs with `journalctl --user -u agent-pager -f`.
+The wizard will:
+- Detect your package manager (apt, dnf, pacman) and offer to install missing dependencies
+- Set up a systemd user service for auto-start
+- Source `page.sh` in your `.bashrc` or `.zshrc`
 
 ## Windows setup
 
