@@ -409,6 +409,13 @@ async function handleNotification(normalized) {
   const adapter = resolveAdapter(agentName);
   const displayName = adapter ? adapter.displayName : 'Agent';
 
+  // Skip idle_prompt — redundant since we screenshot on Stop (which is immediate).
+  // Claude Code fires idle_prompt ~60s after finishing, causing a duplicate DM.
+  if (notificationType === 'idle_prompt') {
+    log('debug', `Skipped idle_prompt for ${shortId} (handled by Stop)`);
+    return;
+  }
+
   // Debounce: skip if same session+type within DEBOUNCE_MS
   const debounceKey = `${sessionId}:${notificationType}`;
   const lastTime = lastNotification.get(debounceKey);
@@ -668,12 +675,22 @@ function startHttpServer() {
         } else if (req.url === '/stop') {
           const agentName = detectAgentFromPayload(data);
           const adapter = adapters.get(agentName);
-          const sid = adapter ? adapter.mapPayload(data).sessionId : data.session_id;
+          const normalized = adapter ? adapter.mapPayload(data) : {
+            sessionId: data.session_id || 'unknown',
+            cwd: data.cwd || '',
+            notificationType: 'stop',
+          };
+          normalized.tmux_session = data.tmux_session;
+          normalized.agent = agentName;
+          normalized.notificationType = 'stop';
+          const sid = normalized.sessionId;
           if (state.sessions[sid]) {
             state.sessions[sid].status = 'stopped';
             saveState();
           }
           log('info', `Stop for ${sid?.slice(0, 8)} [${agentName}]`);
+          // Send screenshot immediately on Stop — faster than waiting for idle_prompt (~60s)
+          await handleNotification(normalized);
         } else {
           res.writeHead(404); res.end(); return;
         }

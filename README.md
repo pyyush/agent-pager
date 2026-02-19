@@ -176,13 +176,15 @@ npm start
 
 ## Notification flow
 
-When an agent pauses for input, the notification pipeline tries three methods in order:
+Notifications are sent when an agent **needs input** (permission prompts) and when a **turn completes** (Stop event). The `idle_prompt` notification from Claude Code (~60s delay) is intentionally suppressed since the Stop event already provides immediate feedback.
+
+The notification pipeline tries three methods in order:
 
 1. **Screenshot** — captures the tmux pane with ANSI colors, renders to PNG via `freeze`, uploads to Slack
 2. **Text capture** — if `freeze` fails, captures the last 80 lines of terminal text and posts as a code block
 3. **Plain text** — if tmux capture fails, posts a simple "needs attention" message
 
-Notifications are debounced (30s per session) to avoid flooding Slack.
+Notifications are debounced (30s per session per event type) to avoid flooding Slack.
 
 ## Adding a new agent
 
