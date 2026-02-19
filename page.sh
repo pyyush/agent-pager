@@ -10,6 +10,7 @@ page() {
   local agent="${PAGER_DEFAULT_AGENT:-claude}"
   local binary=""
   local prefix=""
+  local launch_args=""
 
   # Check if first arg is an agent name
   case "$1" in
@@ -19,12 +20,12 @@ page() {
       agent="codex"; shift ;;
   esac
 
-  # Resolve agent to binary and prefix
+  # Resolve agent to binary, prefix, and default launch flags
   case "$agent" in
     claude)
-      binary="claude"; prefix="cc" ;;
+      binary="claude"; prefix="cc"; launch_args="" ;;
     codex)
-      binary="codex"; prefix="cx" ;;
+      binary="codex"; prefix="cx"; launch_args="--full-auto" ;;
     *)
       echo "Unknown agent: $agent"
       echo "Supported: claude, codex"
@@ -35,12 +36,20 @@ page() {
 
   if [ $# -eq 0 ]; then
     # No arguments — start interactive
-    tmux new-session -d -s "$name" "$binary"
+    if [ -n "$launch_args" ]; then
+      tmux new-session -d -s "$name" "$binary $launch_args"
+    else
+      tmux new-session -d -s "$name" "$binary"
+    fi
   else
     # Arguments — pass as the initial prompt
     local task="$*"
     local escaped="${task//\'/\'\\\'\'}"
-    tmux new-session -d -s "$name" "$binary '${escaped}'"
+    if [ -n "$launch_args" ]; then
+      tmux new-session -d -s "$name" "$binary $launch_args '${escaped}'"
+    else
+      tmux new-session -d -s "$name" "$binary '${escaped}'"
+    fi
   fi
 
   echo "Session: $name ($agent)"

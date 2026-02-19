@@ -304,6 +304,11 @@ if [ "$SETUP_CODEX" = true ]; then
   if [ -f "$CODEX_CONFIG" ]; then
     if grep -q "codex/notify.sh" "$CODEX_CONFIG" 2>/dev/null; then
       echo "  ✓ Codex hook already configured in $CODEX_CONFIG"
+    elif grep -q '^notify\s*=' "$CODEX_CONFIG" 2>/dev/null; then
+      # Existing notify key — replace it (TOML doesn't allow duplicates)
+      echo "  Found existing notify config — replacing with Agent Pager hook"
+      perl -i -pe "s|^notify\s*=.*|${CODEX_HOOK_LINE}|" "$CODEX_CONFIG"
+      echo "  ✓ Codex notify hook replaced"
     else
       echo "  Adding notify hook to $CODEX_CONFIG"
       echo "" >> "$CODEX_CONFIG"

@@ -597,7 +597,8 @@ function registerSlackHandlers() {
     const adapter = adapters.get(agentName);
     const sessionName = `${adapter.sessionPrefix}-${Date.now().toString(36)}`;
     try {
-      execFileSync('tmux', ['new-session', '-d', '-s', sessionName, '--', adapter.binary, task], { timeout: 5000 });
+      const tmuxArgs = ['new-session', '-d', '-s', sessionName, '--', adapter.binary, ...(adapter.launchArgs || []), task];
+      execFileSync('tmux', tmuxArgs, { timeout: 5000 });
       await respond(`Started \`${sessionName}\` (${adapter.displayName}): ${task}`);
       log('info', `New session: ${sessionName} [${agentName}]`);
     } catch (e) {

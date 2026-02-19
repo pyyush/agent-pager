@@ -173,6 +173,7 @@ module.exports = {
   name: 'myagent',
   displayName: 'My Agent',
   binary: 'myagent',           // CLI command to run
+  launchArgs: ['--auto'],      // flags for unattended operation (optional, default [])
   sessionPrefix: 'ma',         // tmux sessions: ma-<id>
   mapPayload(raw) {            // normalize hook JSON
     return {

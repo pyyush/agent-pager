@@ -4,6 +4,7 @@ module.exports = {
   name: 'codex',
   displayName: 'Codex CLI',
   binary: 'codex',
+  launchArgs: ['--full-auto'],  // run autonomously so notifications fire without manual approval
   sessionPrefix: 'cx',
   mapPayload(raw) {
     return {
