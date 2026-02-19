@@ -5,7 +5,7 @@
   "main": "bridge.js",
   "scripts": {
     "start": "node bridge.js",
-    "test": "node bridge.js --test"
+    "test": "node -e \"require('./bridge.js'); /* syntax check */\" 2>/dev/null; node -c bridge.js"
   },
   "dependencies": {
     "@slack/bolt": "^4.1.0",

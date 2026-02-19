@@ -34,21 +34,20 @@ page() {
 
   local name="${prefix}-$(date +%s | cut -c6-10)"
 
+  # Use -- to pass args directly to the binary (no sh -c interpretation)
   if [ $# -eq 0 ]; then
-    # No arguments — start interactive
+    # Interactive — no task argument
     if [ -n "$launch_args" ]; then
-      tmux new-session -d -s "$name" "$binary $launch_args"
+      tmux new-session -d -s "$name" -- "$binary" $launch_args
     else
-      tmux new-session -d -s "$name" "$binary"
+      tmux new-session -d -s "$name" -- "$binary"
     fi
   else
-    # Arguments — pass as the initial prompt
-    local task="$*"
-    local escaped="${task//\'/\'\\\'\'}"
+    # Task provided — pass as a single positional argument
     if [ -n "$launch_args" ]; then
-      tmux new-session -d -s "$name" "$binary $launch_args '${escaped}'"
+      tmux new-session -d -s "$name" -- "$binary" $launch_args "$*"
     else
-      tmux new-session -d -s "$name" "$binary '${escaped}'"
+      tmux new-session -d -s "$name" -- "$binary" "$*"
     fi
   fi
 
@@ -111,5 +110,8 @@ pagel() {
 # Check bridge health
 pageb() {
   local port="${BRIDGE_PORT:-7890}"
-  curl -s "http://127.0.0.1:${port}/health" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "Agent Pager not running on port $port"
+  local result
+  result=$(curl -s "http://127.0.0.1:${port}/health" 2>/dev/null) || { echo "Agent Pager not running on port $port"; return 1; }
+  # Pretty-print via node (already a required dependency)
+  node -e "console.log(JSON.stringify(JSON.parse(process.argv[1]),null,2))" "$result" 2>/dev/null || echo "$result"
 }

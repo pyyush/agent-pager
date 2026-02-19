@@ -12,6 +12,11 @@ BRIDGE_PORT="${BRIDGE_PORT:-7890}"
 # Load BRIDGE_SECRET from .env if not already set
 if [ -z "${BRIDGE_SECRET:-}" ] && [ -f "$BRIDGE_DIR/.env" ]; then
   BRIDGE_SECRET=$(grep '^BRIDGE_SECRET=' "$BRIDGE_DIR/.env" | cut -d= -f2- || true)
+  # Strip surrounding quotes (dotenv strips them; we must match)
+  BRIDGE_SECRET="${BRIDGE_SECRET#\"}"
+  BRIDGE_SECRET="${BRIDGE_SECRET%\"}"
+  BRIDGE_SECRET="${BRIDGE_SECRET#\'}"
+  BRIDGE_SECRET="${BRIDGE_SECRET%\'}"
 fi
 
 post_to_bridge() {

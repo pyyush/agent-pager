@@ -208,9 +208,9 @@ if ($setupCodex) {
         $content = Get-Content $CodexConfig -Raw
         if ($content -match "codex[/\\]windows[/\\]notify\.ps1") {
             Write-Host "  Codex hook already configured" -ForegroundColor Green
-        } elseif ($content -match "^notify\s*=") {
-            # Replace existing notify line
-            $content = $content -replace "^notify\s*=.*", $codexHookLine
+        } elseif ($content -match "(?m)^notify\s*=") {
+            # Replace existing notify line ((?m) makes ^ match line start)
+            $content = $content -replace "(?m)^notify\s*=.*", $codexHookLine
             Set-Content $CodexConfig $content -Encoding UTF8
             Write-Host "  Codex notify hook replaced" -ForegroundColor Green
         } else {

@@ -6,12 +6,12 @@
   <string>com.agent-pager</string>
   <key>ProgramArguments</key>
   <array>
-    <!-- These paths are replaced by setup.sh -->
+    <!-- These paths are replaced by setup.sh — do not use this template directly -->
     <string>/usr/local/bin/node</string>
-    <string>/Users/piyush/GitHub/claude-slack-bridge/bridge.js</string>
+    <string>/path/to/agent-pager/bridge.js</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/piyush/GitHub/claude-slack-bridge</string>
+  <string>/path/to/agent-pager</string>
   <key>KeepAlive</key>
   <true/>
   <key>RunAtLoad</key>

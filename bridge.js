@@ -23,6 +23,7 @@ const LOG_FILE = path.join(os.homedir(), '.agent-pager', 'pager.log');
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET || '';
 const ALLOWED_USERS = (process.env.ALLOWED_SLACK_USERS || '').split(',').filter(Boolean);
 const DEBOUNCE_MS = 30_000;
+const MAX_BODY_SIZE = 1024 * 1024; // 1MB — reject oversized hook payloads
 const DEFAULT_AGENT = process.env.PAGER_DEFAULT_AGENT || 'claude';
 
 for (const key of ['SLACK_BOT_TOKEN', 'SLACK_APP_TOKEN']) {
@@ -193,8 +194,12 @@ async function getTargetChannel() {
     log('info', `DM channel opened: ${dmChannelId}`);
     return dmChannelId;
   } catch (e) {
-    log('warn', 'Could not open DM, falling back to channel:', e.message);
-    return CHANNEL;
+    if (CHANNEL) {
+      log('warn', 'Could not open DM, falling back to channel:', e.message);
+      return CHANNEL;
+    }
+    log('error', 'Could not open DM and no SLACK_CHANNEL_ID configured:', e.message);
+    throw new Error('No Slack channel available — set SLACK_CHANNEL_ID as fallback');
   }
 }
 
@@ -335,7 +340,7 @@ async function captureScreenshot(tmuxSession) {
     const tmpFile = path.join(os.tmpdir(), `agent-pager-${Date.now()}.png`);
     const pixelWidth = Math.max(800, paneWidth * 10);
 
-    // freeze needs stdin input — use spawn + promise
+    // freeze needs stdin input — use spawn + manual timeout
     await new Promise((resolve, reject) => {
       const proc = spawn('freeze', [
         '--language', 'ansi',
@@ -344,16 +349,22 @@ async function captureScreenshot(tmuxSession) {
         '--width', String(pixelWidth),
         '--padding', '20,40',
         '--font.size', '14',
-      ], { stdio: ['pipe', 'pipe', 'pipe'], timeout: 15000 });
+      ], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+      const timer = setTimeout(() => {
+        proc.kill();
+        reject(new Error('freeze timed out after 15s'));
+      }, 15000);
 
       proc.stdin.write(ansi);
       proc.stdin.end();
 
       proc.on('close', (code) => {
+        clearTimeout(timer);
         if (code === 0) resolve();
         else reject(new Error(`freeze exited with code ${code}`));
       });
-      proc.on('error', reject);
+      proc.on('error', (err) => { clearTimeout(timer); reject(err); });
     });
 
     if (fs.existsSync(tmpFile) && fs.statSync(tmpFile).size > 0) return tmpFile;
@@ -646,8 +657,13 @@ function startHttpServer() {
     }
 
     let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let tooBig = false;
+    req.on('data', chunk => {
+      body += chunk;
+      if (body.length > MAX_BODY_SIZE) { tooBig = true; req.destroy(); }
+    });
     req.on('end', async () => {
+      if (tooBig) { res.writeHead(413); res.end('Payload too large'); return; }
       try {
         const data = JSON.parse(body);
 
@@ -679,7 +695,7 @@ function startHttpServer() {
         res.writeHead(200); res.end('ok');
       } catch (e) {
         log('error', `Error: ${e.message}`);
-        res.writeHead(500); res.end(e.message);
+        res.writeHead(500); res.end('Internal server error');
       }
     });
   });

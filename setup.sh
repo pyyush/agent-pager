@@ -291,8 +291,8 @@ HEOF
     echo "  Claude settings file exists: $CLAUDE_SETTINGS"
     echo ""
     echo "  Current hooks config (if any):"
-    node -e "
-      const s = require('$CLAUDE_SETTINGS');
+    SETTINGS_PATH="$CLAUDE_SETTINGS" node -e "
+      const s = JSON.parse(require('fs').readFileSync(process.env.SETTINGS_PATH, 'utf8'));
       console.log(JSON.stringify(s.hooks || {}, null, 2));
     " 2>/dev/null || echo "  (could not read)"
     echo ""
@@ -305,11 +305,11 @@ HEOF
       echo "$HOOKS_JSON"
       echo ""
     else
-      # Merge hooks into existing settings
-      node -e "
+      # Merge hooks into existing settings (paths passed via env vars, not interpolated into JS)
+      SETTINGS_PATH="$CLAUDE_SETTINGS" NEW_HOOKS="$HOOKS_JSON" node -e "
         const fs = require('fs');
-        const settings = JSON.parse(fs.readFileSync('$CLAUDE_SETTINGS', 'utf8'));
-        const newHooks = $HOOKS_JSON;
+        const settings = JSON.parse(fs.readFileSync(process.env.SETTINGS_PATH, 'utf8'));
+        const newHooks = JSON.parse(process.env.NEW_HOOKS);
 
         // Merge: append to existing arrays or create new ones
         if (!settings.hooks) settings.hooks = {};
@@ -345,7 +345,7 @@ HEOF
           if (settings.hooks.PreToolUse.length === 0) delete settings.hooks.PreToolUse;
         }
 
-        fs.writeFileSync('$CLAUDE_SETTINGS', JSON.stringify(settings, null, 2));
+        fs.writeFileSync(process.env.SETTINGS_PATH, JSON.stringify(settings, null, 2));
         console.log('  ✓ Claude Code hooks merged into settings');
       " 2>/dev/null || {
         echo "  ✗ Failed to merge. Add hooks manually."
@@ -423,7 +423,7 @@ if [ -n "$SHELL_RC" ]; then
     if [ "$add_shell" != "n" ] && [ "$add_shell" != "N" ]; then
       echo "" >> "$SHELL_RC"
       echo "# Agent Pager" >> "$SHELL_RC"
-      echo "source ${BRIDGE_DIR}/page.sh" >> "$SHELL_RC"
+      echo "source \"${BRIDGE_DIR}/page.sh\"" >> "$SHELL_RC"
       echo "  ✓ Added to $SHELL_RC"
     fi
   fi

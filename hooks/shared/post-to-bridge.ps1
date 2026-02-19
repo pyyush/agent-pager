@@ -4,7 +4,7 @@
 # Usage: . this file, then call Post-ToBridge "/notification"
 
 $BridgeDir = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$BridgePort = if ($env:BRIDGE_PORT) { $env:BRIDGE_PORT } else { "7890" }
+$BridgePort = $(if ($env:BRIDGE_PORT) { $env:BRIDGE_PORT } else { "7890" })
 
 # Load BRIDGE_SECRET from .env if not already set
 if (-not $env:BRIDGE_SECRET) {
@@ -12,7 +12,9 @@ if (-not $env:BRIDGE_SECRET) {
     if (Test-Path $envFile) {
         $line = Get-Content $envFile | Where-Object { $_ -match "^BRIDGE_SECRET=" }
         if ($line) {
-            $env:BRIDGE_SECRET = ($line -split "=", 2)[1]
+            $raw = ($line -split "=", 2)[1]
+            # Strip surrounding quotes (dotenv strips them; we must match)
+            $env:BRIDGE_SECRET = $raw -replace '^["'']|["'']$', ''
         }
     }
 }
@@ -21,8 +23,6 @@ function Post-ToBridge {
     param([string]$Endpoint)
 
     try {
-        # Parse payload JSON via node (safe, no shell interpolation)
-        $agentName = if ($env:AGENT_NAME) { $env:AGENT_NAME } else { "unknown" }
         $injected = node -e "
             const data = JSON.parse(process.env.AGENT_PAYLOAD);
             data._agent = process.env.AGENT_NAME || 'unknown';
