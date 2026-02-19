@@ -76,6 +76,10 @@ function log(level, ...args) {
 let caffeinateProc = null;
 
 function preventSleep() {
+  if (process.platform !== 'darwin') {
+    log('debug', 'Sleep prevention skipped (not macOS)');
+    return;
+  }
   try {
     caffeinateProc = spawn('caffeinate', ['-s', '-i'], {
       stdio: 'ignore',

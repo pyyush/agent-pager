@@ -25,12 +25,28 @@ page "fix the auth bug"
                                      agent continues
 ```
 
+## Platform support
+
+| Platform | Status |
+|----------|--------|
+| **macOS** | Fully supported — launchd auto-start, caffeinate sleep prevention |
+| **Linux** | Supported — use systemd instead of launchd (see [Linux setup](#linux-setup)) |
+| **Windows (WSL)** | Supported — run everything inside WSL (see [Windows setup](#windows-wsl-setup)) |
+| **Windows (native)** | Not supported — tmux has no native Windows equivalent |
+
+Agent Pager requires tmux for session management, screenshots, and input routing. On Windows, this means running inside WSL.
+
 ## Quick start
 
-**Prerequisites:** macOS, [Node.js](https://nodejs.org) >= 18, [tmux](https://github.com/tmux/tmux), [freeze](https://github.com/charmbracelet/freeze) (for screenshots)
+**Prerequisites:** macOS or Linux (or [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) on Windows), [Node.js](https://nodejs.org) >= 18, [tmux](https://github.com/tmux/tmux), [freeze](https://github.com/charmbracelet/freeze) (for screenshots)
 
 ```sh
-brew install tmux charmbracelet/tap/freeze  # if needed
+# macOS
+brew install tmux charmbracelet/tap/freeze
+
+# Ubuntu/Debian (including WSL)
+sudo apt install tmux
+go install github.com/charmbracelet/freeze@latest  # or: snap install freeze
 ```
 
 **1. Clone and install**
@@ -224,12 +240,75 @@ agent-pager/
   .env.example                 # Configuration template
 ```
 
+## Linux setup
+
+Everything works except launchd (macOS-only). Use systemd instead:
+
+```sh
+# Run setup — skip the launchd step
+bash setup.sh
+
+# Create a systemd user service
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/agent-pager.service <<EOF
+[Unit]
+Description=Agent Pager
+After=network.target
+
+[Service]
+WorkingDirectory=$(pwd)
+ExecStart=$(which node) $(pwd)/bridge.js
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+EOF
+
+systemctl --user enable --now agent-pager
+```
+
+View logs with `journalctl --user -u agent-pager -f`.
+
+## Windows (WSL) setup
+
+1. **Install WSL** if you haven't: `wsl --install` in PowerShell (admin), then restart.
+
+2. **Inside WSL**, install dependencies and run setup:
+
+```sh
+sudo apt update && sudo apt install -y tmux curl
+# Install Node.js (https://github.com/nodesource/distributions)
+# Install freeze: go install github.com/charmbracelet/freeze@latest
+# Install your agent(s): claude, codex, etc.
+
+git clone https://github.com/pyyush/agent-pager.git
+cd agent-pager
+npm install --production
+bash setup.sh   # skip the launchd step — use systemd (see Linux setup above)
+```
+
+3. **Keep WSL running.** Agent Pager needs a persistent WSL session. Use `systemctl --user enable --now agent-pager` or run `node bridge.js` in a background tmux session:
+
+```sh
+tmux new-session -d -s pager 'node bridge.js'
+```
+
+4. **Use it** from inside WSL:
+
+```sh
+source ~/.bashrc
+page "fix the auth bug"
+```
+
+Slack notifications work the same — the bridge connects to Slack via Socket Mode (outbound WebSocket), so no inbound ports or network config needed.
+
 ## Security
 
 - The bridge listens only on `127.0.0.1` — no external network access
 - Hook requests are authenticated with `BRIDGE_SECRET` (auto-generated during setup)
 - The `ALLOWED_SLACK_USERS` allowlist restricts who can issue Slack commands and reply to threads
-- Mac sleep is prevented via `caffeinate` while the bridge runs
+- Sleep prevention via `caffeinate` is macOS-only (skipped gracefully on Linux/WSL)
 
 ## License
 
