@@ -1,8 +1,14 @@
+_metadata:
+  major_version: 1
+  minor_version: 1
 display_information:
   name: Agent Pager
   description: Monitor and interact with AI coding agents (Claude Code, Codex CLI) from Slack
   background_color: "#6B4FBB"
 features:
+  app_home:
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
   bot_user:
     display_name: Agent Pager
     always_online: true
