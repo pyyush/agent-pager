@@ -428,10 +428,14 @@ async function handleNotification(normalized) {
   const tmux = normalized.tmux_session || state.sessions[sessionId]?.tmux_session;
 
   if (!tmux) {
+    const lastMsg = normalized.lastMessage;
+    const body = lastMsg
+      ? `${displayName} needs attention (${notificationType})\n\`\`\`\n${lastMsg.slice(0, 3000)}\n\`\`\``
+      : `${displayName} needs attention (${notificationType})`;
     await slack.client.chat.postMessage({
       channel,
       thread_ts: threadTs,
-      text: `${displayName} needs attention (${notificationType})`,
+      text: body,
     });
     log('info', `Plain text fallback for ${shortId} (no tmux)`);
     return;

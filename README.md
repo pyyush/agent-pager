@@ -27,14 +27,14 @@ page "fix the auth bug"
 
 ## Platform support
 
-| Platform | Status |
-|----------|--------|
-| **macOS** | Fully supported — launchd auto-start, caffeinate sleep prevention |
-| **Linux** | Supported — use systemd instead of launchd (see [Linux setup](#linux-setup)) |
-| **Windows (WSL)** | Supported — run everything inside WSL (see [Windows setup](#windows-wsl-setup)) |
-| **Windows (native)** | Not supported — tmux has no native Windows equivalent |
+| Platform | Status | Screenshots | Reply from Slack |
+|----------|--------|-------------|-----------------|
+| **macOS** | Full support | Yes (freeze + tmux) | Yes (tmux send-keys) |
+| **Linux** | Full support | Yes (freeze + tmux) | Yes (tmux send-keys) |
+| **Windows (native)** | Notifications only | No | No |
+| **Windows (WSL)** | Full support | Yes | Yes |
 
-Agent Pager requires tmux for session management, screenshots, and input routing. On Windows, this means running inside WSL.
+On macOS/Linux, tmux powers screenshots and reply routing. On native Windows, Agent Pager works as a **one-way pager** — your agent notifies you on Slack with the assistant's last message, but you can't reply back from Slack. For full bidirectional support on Windows, use WSL.
 
 ## Quick start
 
@@ -220,7 +220,8 @@ The adapter is auto-discovered on startup. The new agent is immediately availabl
 agent-pager/
   bridge.js                    # Main process — Slack bot + HTTP server
   page.sh                      # Shell functions (page, pagea, pagel, pageb)
-  setup.sh                     # Interactive setup wizard
+  setup.sh                     # Setup wizard (macOS/Linux)
+  setup-windows.ps1            # Setup wizard (Windows)
   adapters/
     claude.js                  # Claude Code adapter
     codex.js                   # Codex CLI adapter
@@ -228,12 +229,18 @@ agent-pager/
   hooks/
     shared/
       detect-tmux.sh           # Finds which tmux session a process is in
-      post-to-bridge.sh        # Injects metadata and POSTs to bridge
+      post-to-bridge.sh        # Injects metadata and POSTs to bridge (bash)
+      post-to-bridge.ps1       # Same, for Windows (PowerShell)
     claude/
-      notify.sh                # Claude Code notification hook
-      stop.sh                  # Claude Code stop hook
+      notify.sh                # Claude Code notification hook (bash)
+      stop.sh                  # Claude Code stop hook (bash)
+      windows/
+        notify.ps1             # Claude Code notification hook (PowerShell)
+        stop.ps1               # Claude Code stop hook (PowerShell)
     codex/
-      notify.sh                # Codex CLI notification hook
+      notify.sh                # Codex CLI notification hook (bash)
+      windows/
+        notify.ps1             # Codex CLI notification hook (PowerShell)
   launchd/
     com.agent-pager.plist      # macOS auto-start template
   slack-app-manifest.yml       # Slack app manifest for one-click creation
@@ -270,9 +277,39 @@ systemctl --user enable --now agent-pager
 
 View logs with `journalctl --user -u agent-pager -f`.
 
-## Windows (WSL) setup
+## Windows setup
 
-1. **Install WSL** if you haven't: `wsl --install` in PowerShell (admin), then restart.
+### Option A: Native PowerShell (notifications only)
+
+Agent Pager works as a one-way pager on native Windows — your agent notifies Slack with its last message when it needs attention. No screenshots or reply-from-Slack.
+
+```powershell
+git clone https://github.com/pyyush/agent-pager.git
+cd agent-pager
+npm install --production
+powershell -ExecutionPolicy Bypass -File setup-windows.ps1
+```
+
+Start the bridge in a terminal:
+
+```powershell
+node bridge.js
+```
+
+Then start your agent in a separate terminal. The hooks fire automatically:
+
+```powershell
+claude "fix the auth bug"
+codex --full-auto "fix the auth bug"
+```
+
+You'll get Slack DMs with the agent's last message when it pauses. To reply, switch back to the agent's terminal window.
+
+### Option B: WSL (full support)
+
+For screenshots and reply-from-Slack, run everything inside WSL:
+
+1. **Install WSL**: `wsl --install` in PowerShell (admin), then restart.
 
 2. **Inside WSL**, install dependencies and run setup:
 
@@ -288,7 +325,7 @@ npm install --production
 bash setup.sh   # skip the launchd step — use systemd (see Linux setup above)
 ```
 
-3. **Keep WSL running.** Agent Pager needs a persistent WSL session. Use `systemctl --user enable --now agent-pager` or run `node bridge.js` in a background tmux session:
+3. **Keep WSL running.** Use systemd or a background tmux session:
 
 ```sh
 tmux new-session -d -s pager 'node bridge.js'
@@ -301,7 +338,7 @@ source ~/.bashrc
 page "fix the auth bug"
 ```
 
-Slack notifications work the same — the bridge connects to Slack via Socket Mode (outbound WebSocket), so no inbound ports or network config needed.
+Slack notifications work the same on all platforms — the bridge connects via Socket Mode (outbound WebSocket), so no inbound ports or firewall config needed.
 
 ## Security
 

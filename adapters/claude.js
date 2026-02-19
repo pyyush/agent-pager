@@ -11,6 +11,7 @@ module.exports = {
       sessionId: raw.session_id,
       cwd: raw.cwd || '',
       notificationType: raw.notification_type || 'unknown',
+      lastMessage: raw.message || '',
     };
   },
 };
