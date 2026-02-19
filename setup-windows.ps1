@@ -85,11 +85,7 @@ if (-not (Test-Path $envFile)) {
     $botToken = Read-Host "  Bot Token (xoxb-...)"
     $appToken = Read-Host "  App Token (xapp-...)"
     Write-Host ""
-    $userId = Read-Host "  Slack User ID for DM mode (or Enter to skip)"
-    $channelId = ""
-    if (-not $userId) {
-        $channelId = Read-Host "  Channel ID (C0...)"
-    }
+    $userId = Read-Host "  Your Slack User ID (click profile > '...' > Copy member ID)"
 
     # Generate secret
     $secret = -join ((1..32) | ForEach-Object { '{0:x2}' -f (Get-Random -Maximum 256) })
@@ -100,7 +96,6 @@ if (-not (Test-Path $envFile)) {
     @"
 SLACK_BOT_TOKEN=$botToken
 SLACK_APP_TOKEN=$appToken
-SLACK_CHANNEL_ID=$channelId
 SLACK_USER_ID=$userId
 BRIDGE_PORT=7890
 BRIDGE_SECRET=$secret

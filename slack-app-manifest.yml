@@ -15,8 +15,6 @@ oauth_config:
     bot:
       - chat:write
       - commands
-      - channels:history
-      - channels:read
       - files:write
       - im:read
       - im:write
@@ -24,7 +22,6 @@ oauth_config:
 settings:
   event_subscriptions:
     bot_events:
-      - message.channels
       - message.im
   interactivity:
     is_enabled: false

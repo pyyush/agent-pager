@@ -195,15 +195,7 @@ if [ ! -f "$ENV_FILE" ]; then
   read -rp "  Bot Token (xoxb-...): " BOT_TOKEN
   read -rp "  App Token (xapp-...): " APP_TOKEN
   echo ""
-  echo "  Notification mode:"
-  echo "    DM mode  — notifications go to your Slack DMs (recommended for single user)"
-  echo "    Channel  — notifications go to a shared channel"
-  echo ""
-  read -rp "  Your Slack User ID for DM mode (or press Enter to skip for channel mode): " USER_ID
-  CHANNEL_ID=""
-  if [ -z "$USER_ID" ]; then
-    read -rp "  Channel ID (C0...): " CHANNEL_ID
-  fi
+  read -rp "  Your Slack User ID (click profile → '...' → Copy member ID): " USER_ID
 
   # Generate BRIDGE_SECRET
   BRIDGE_SECRET=$(openssl rand -hex 32)
@@ -217,7 +209,6 @@ if [ ! -f "$ENV_FILE" ]; then
   cat > "$ENV_FILE" <<EOF
 SLACK_BOT_TOKEN=${BOT_TOKEN}
 SLACK_APP_TOKEN=${APP_TOKEN}
-SLACK_CHANNEL_ID=${CHANNEL_ID}
 SLACK_USER_ID=${USER_ID}
 BRIDGE_PORT=7890
 BRIDGE_SECRET=${BRIDGE_SECRET}

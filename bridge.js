@@ -16,7 +16,6 @@ const execFileAsync = util.promisify(execFile);
 // ─── Config ─────────────────────────────────────────────────────────────────────
 
 const PORT = parseInt(process.env.BRIDGE_PORT || '7890', 10);
-const CHANNEL = process.env.SLACK_CHANNEL_ID;
 const STATE_FILE = path.join(__dirname, 'state.json');
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 const LOG_FILE = path.join(os.homedir(), '.agent-pager', 'pager.log');
@@ -33,9 +32,8 @@ for (const key of ['SLACK_BOT_TOKEN', 'SLACK_APP_TOKEN']) {
   }
 }
 
-// At least one of SLACK_CHANNEL_ID or SLACK_USER_ID required
-if (!process.env.SLACK_CHANNEL_ID && !process.env.SLACK_USER_ID) {
-  console.error('Missing required env var: SLACK_CHANNEL_ID or SLACK_USER_ID');
+if (!process.env.SLACK_USER_ID) {
+  console.error('Missing required env var: SLACK_USER_ID');
   process.exit(1);
 }
 
@@ -183,24 +181,14 @@ function startSlackHealthCheck() {
 let dmChannelId = null;
 
 async function getTargetChannel() {
-  if (!process.env.SLACK_USER_ID) return CHANNEL;
   if (dmChannelId) return dmChannelId;
 
-  try {
-    const result = await slack.client.conversations.open({
-      users: process.env.SLACK_USER_ID,
-    });
-    dmChannelId = result.channel.id;
-    log('info', `DM channel opened: ${dmChannelId}`);
-    return dmChannelId;
-  } catch (e) {
-    if (CHANNEL) {
-      log('warn', 'Could not open DM, falling back to channel:', e.message);
-      return CHANNEL;
-    }
-    log('error', 'Could not open DM and no SLACK_CHANNEL_ID configured:', e.message);
-    throw new Error('No Slack channel available — set SLACK_CHANNEL_ID as fallback');
-  }
+  const result = await slack.client.conversations.open({
+    users: process.env.SLACK_USER_ID,
+  });
+  dmChannelId = result.channel.id;
+  log('info', `DM channel opened: ${dmChannelId}`);
+  return dmChannelId;
 }
 
 // ─── Auth ───────────────────────────────────────────────────────────────────────
@@ -276,7 +264,7 @@ function findSessionByThread(threadTs) {
 }
 
 function getSessionChannel(sessionId) {
-  return state.sessions[sessionId]?.channel || CHANNEL;
+  return state.sessions[sessionId]?.channel;
 }
 
 // ─── tmux ───────────────────────────────────────────────────────────────────────
@@ -566,7 +554,6 @@ function registerSlackHandlers() {
         agents: agentList,
         tmux: tmuxSummary,
         freeze: freezeStatus,
-        mode: process.env.SLACK_USER_ID ? 'DM' : 'channel',
         sessions: Object.keys(state.sessions).length,
         uptime: Math.floor(process.uptime()) + 's',
       };
@@ -640,7 +627,6 @@ function startHttpServer() {
       res.end(JSON.stringify({
         status: 'ok',
         slack: slackHealthy,
-        mode: process.env.SLACK_USER_ID ? 'dm' : 'channel',
         agents: [...adapters.keys()],
         sessions: getManagedTmuxSessions(),
         uptime: Math.floor(process.uptime()),
