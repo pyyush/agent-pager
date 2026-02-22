@@ -1,6 +1,27 @@
 node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# Environment
 .env
-state.json
-*.log
-CLAUDE.md
+.env.local
+
+# DevPager runtime
+.devpager/
+
+# OS
 .DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# CLAUDE.md - personal/local context
+CLAUDE.md
+
+# Test coverage
+coverage/

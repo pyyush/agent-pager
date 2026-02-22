@@ -1,0 +1,67 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Read",
+      "Edit",
+      "Write",
+      "WebFetch",
+      "WebSearch",
+      "Glob",
+      "Grep",
+      "Task",
+      "AskUserQuestion",
+      "TaskList",
+      "TaskGet",
+      "TaskCreate",
+      "TaskUpdate"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/piyush/.bun/bin/bun /Users/piyush/GitHub/devpager/packages/gateway/hooks/claude/pre-tool-use.ts",
+            "timeout": 300000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/piyush/.bun/bin/bun /Users/piyush/GitHub/devpager/packages/gateway/hooks/claude/post-tool-use.ts"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/piyush/.bun/bin/bun /Users/piyush/GitHub/devpager/packages/gateway/hooks/claude/notification.ts"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/piyush/.bun/bin/bun /Users/piyush/GitHub/devpager/packages/gateway/hooks/claude/stop.ts"
+          }
+        ]
+      }
+    ]
+  }
+}
