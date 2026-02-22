@@ -1,0 +1,35 @@
+{
+  "name": "@agentpager/gateway",
+  "version": "0.1.0",
+  "description": "AgentPager gateway daemon — hook ingestion, session management, WebSocket server",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@agentpager/protocol": "workspace:*",
+    "@noble/curves": "^1.9.7",
+    "@noble/ed25519": "^2.2.0",
+    "@noble/hashes": "^1.7.0",
+    "diff": "^7.0.0",
+    "otpauth": "^9.3.0",
+    "qrcode": "^1.5.0",
+    "semver": "^7.7.0",
+    "toml": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/diff": "^7.0.0",
+    "@types/qrcode": "^1.5.0",
+    "@types/semver": "^7.5.0",
+    "bun-types": "^1.3.9",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "author": "Piyush Vyas",
+  "license": "Apache-2.0"
+}
