@@ -15,6 +15,12 @@ export interface AgentPagerJWTClaims {
 
 /**
  * Hash a room secret for storage in D1.
+ *
+ * Room secrets are 256 bits of cryptographic randomness (generated via
+ * crypto.getRandomValues in generateRoomSecret). At this entropy level,
+ * unsalted SHA-256 is acceptable: brute-forcing 2^256 possible inputs is
+ * computationally infeasible regardless of salt or iteration count.
+ * Salting/PBKDF2 would add complexity without meaningful security gain here.
  */
 export async function hashSecret(secret: string): Promise<string> {
   const data = new TextEncoder().encode(secret);

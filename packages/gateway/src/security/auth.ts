@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 
 /**
  * Generate a cryptographically secure auth token.
@@ -9,16 +9,17 @@ export function generateToken(bytes = 32): string {
 
 /**
  * Constant-time string comparison to prevent timing attacks.
+ *
+ * Uses Node's crypto.timingSafeEqual under the hood. When lengths differ,
+ * performs a constant-time no-op comparison (bufA vs bufA) to avoid leaking
+ * token length via timing side-channel, then returns false.
  */
 export function secureCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
-
-  let diff = 0;
-  for (let i = 0; i < bufA.length; i++) {
-    diff |= bufA[i] ^ bufB[i];
+  if (bufA.length !== bufB.length) {
+    timingSafeEqual(bufA, bufA); // constant-time no-op to prevent length leak
+    return false;
   }
-  return diff === 0;
+  return timingSafeEqual(bufA, bufB);
 }

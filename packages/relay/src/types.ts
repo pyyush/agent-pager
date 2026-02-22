@@ -10,6 +10,10 @@ export interface Env {
   APNS_KEY_ID?: string;
   APNS_PRIVATE_KEY?: string;
   APNS_TEAM_ID?: string;
+
+  // Optional: comma-separated list of allowed CORS origins (e.g., "https://example.com")
+  // If unset, no CORS headers are returned (safe default — iOS native app doesn't need CORS).
+  ALLOWED_ORIGINS?: string;
 }
 
 /** Room creation request */

@@ -74,7 +74,7 @@ export class HookIngestion {
       port: this.config.hookHttpPort,
       hostname: "127.0.0.1",
       async fetch(req) {
-        return self.handleHttpRequest(req);
+        return self.handleHttpRequest(req, false);
       },
     });
 
@@ -100,7 +100,7 @@ export class HookIngestion {
     this.unixServer = Bun.serve({
       unix: socketPath,
       async fetch(req) {
-        return self.handleHttpRequest(req);
+        return self.handleHttpRequest(req, true);
       },
     });
 
@@ -115,7 +115,7 @@ export class HookIngestion {
     console.log(`[hooks] Unix socket listening at ${socketPath}`);
   }
 
-  private async handleHttpRequest(req: Request): Promise<Response> {
+  private async handleHttpRequest(req: Request, isUnix: boolean): Promise<Response> {
     const url = new URL(req.url, "http://localhost");
 
     // Health check
@@ -129,7 +129,6 @@ export class HookIngestion {
     }
 
     // Validate auth token for HTTP (not required for Unix socket — OS-enforced)
-    const isUnix = !url.port; // Unix socket URLs don't have a port
     if (!isUnix) {
       const token =
         req.headers.get("X-AgentPager-Token") ||

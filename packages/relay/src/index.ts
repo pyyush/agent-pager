@@ -16,14 +16,15 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
-    // CORS headers for iOS app
-    const corsHeaders: Record<string, string> = {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Authorization, Content-Type",
-    };
+    // CORS: only return headers when Origin matches an explicit allowlist.
+    // iOS native app doesn't send Origin headers, so omitting CORS is safe for it.
+    // Set ALLOWED_ORIGINS env var (comma-separated) to enable CORS for web clients.
+    const corsHeaders = getCorsHeaders(request, env);
 
     if (request.method === "OPTIONS") {
+      if (!corsHeaders) {
+        return new Response(null, { status: 204 });
+      }
       return new Response(null, { headers: corsHeaders });
     }
 
@@ -353,7 +354,8 @@ function generateRoomSecret(): string {
     .join("");
 }
 
-function withCors(response: Response, corsHeaders: Record<string, string>): Response {
+function withCors(response: Response, corsHeaders: Record<string, string> | null): Response {
+  if (!corsHeaders) return response;
   const newHeaders = new Headers(response.headers);
   for (const [key, value] of Object.entries(corsHeaders)) {
     newHeaders.set(key, value);
@@ -363,4 +365,26 @@ function withCors(response: Response, corsHeaders: Record<string, string>): Resp
     statusText: response.statusText,
     headers: newHeaders,
   });
+}
+
+/**
+ * Build CORS headers only if the request Origin is in the ALLOWED_ORIGINS allowlist.
+ * Returns null if no CORS headers should be sent (origin missing or not allowed).
+ */
+function getCorsHeaders(request: Request, env: Env): Record<string, string> | null {
+  const origin = request.headers.get("Origin");
+  if (!origin) return null;
+
+  const allowedRaw = env.ALLOWED_ORIGINS;
+  if (!allowedRaw) return null;
+
+  const allowed = allowedRaw.split(",").map((s) => s.trim()).filter(Boolean);
+  if (!allowed.includes(origin)) return null;
+
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Vary": "Origin",
+  };
 }
